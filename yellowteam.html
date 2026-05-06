@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Manchester — Guide Étape par Étape</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: #07090f; }
+
+/* ── MAP ── */
+#map {
+  position: absolute;
+  transition: top 0.35s ease, bottom 0.35s ease, right 0.35s ease, left 0.35s ease;
+}
+
+/* ── SIDE PANEL ── */
+#panel {
+  position: absolute;
+  background: #07090f;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.35s ease, top 0.35s ease, width 0.35s ease;
+}
+
+/* ── MODE LATÉRAL ── */
+body.mode-side #map { top: 0; bottom: 0; left: 0; right: 320px; }
+body.mode-side #panel { top: 0; bottom: 0; right: 0; width: 320px; border-left: 1px solid rgba(245,197,24,0.15); border-top: none; transform: translateX(0); }
+body.mode-side.collapsed #map { right: 0; }
+body.mode-side.collapsed #panel { transform: translateX(320px); }
+body.mode-side #collapse-btn { display: flex; }
+body.mode-side:not(.collapsed) #expand-btn { display: none; }
+body.mode-side.collapsed #expand-btn { display: flex; }
+body.mode-side #photo-wrap { display: block; height: 210px; }
+
+/* ── MODE EMPILÉ ── */
+body.mode-stack #map { top: 0; left: 0; right: 0; bottom: 55%; }
+body.mode-stack #panel { top: 45%; left: 0; right: 0; bottom: 0; width: 100%; border-left: none; border-top: 1px solid rgba(245,197,24,0.25); transform: none; }
+body.mode-stack #collapse-btn { display: none; }
+body.mode-stack #expand-btn { display: none; }
+body.mode-stack #photo-wrap { height: 130px; }
+
+/* ── BOUTONS DE CONTRÔLE DU PANEL ── */
+#panel-header-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+#panel-controls {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.pc-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(200,215,255,0.45);
+  border-radius: 3px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.pc-btn:hover { background: rgba(255,255,255,0.09); color: rgba(200,215,255,0.85); }
+.pc-btn.accent { background: rgba(245,197,24,0.1); border-color: rgba(245,197,24,0.35); color: #f5c518; }
+.pc-btn.accent:hover { background: rgba(245,197,24,0.2); }
+
+/* ── BOUTON EXPAND FLOTTANT ── */
+#expand-btn {
+  position: absolute;
+  top: 50%; right: 0;
+  transform: translateY(-50%);
+  z-index: 500;
+  background: rgba(7,9,15,0.88);
+  border: 1px solid rgba(245,197,24,0.3);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  color: #f5c518;
+  width: 22px; height: 52px;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  transition: background 0.2s;
+  display: none;
+}
+#expand-btn:hover { background: rgba(245,197,24,0.15); }
+
+/* ── RESPONSIVE COMPACT (mode empilé sur petit écran) ── */
+body.mode-stack #content { padding: 10px 12px; gap: 8px; }
+body.mode-stack .li-card { padding: 6px 8px; }
+body.mode-stack .li-val { font-size: 12px; }
+body.mode-stack .pdot { width: 18px; }
+body.mode-stack .cb { padding: 7px 9px; }
+body.mode-stack .cb-text { font-size: 11.5px; }
+body.mode-stack .nav-btn { height: 38px; font-size: 10px; }
+body.mode-stack #rules-footer { padding: 6px 10px 8px; gap: 3px; }
+body.mode-stack .rf-row { font-size: 7.5px; }
+
+/* Panel header */
+#panel-header {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(10,14,24,0.9);
+  flex-shrink: 0;
+}
+.ph-eyebrow {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: rgba(200,215,255,0.3);
+  margin-bottom: 4px;
+}
+.ph-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: #f5c518;
+  text-shadow: 0 0 16px rgba(245,197,24,0.4);
+}
+.ph-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.5px;
+  color: rgba(200,215,255,0.35);
+  letter-spacing: 1.5px;
+  margin-top: 3px;
+}
+
+/* ── PHOTO AREA ── */
+#photo-wrap {
+  position: relative;
+  flex-shrink: 0;
+  height: 210px;
+  overflow: hidden;
+  background: #0c1020;
+}
+#photo-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              opacity 0.4s ease;
+  transform-origin: center;
+}
+#photo-img.loading { opacity: 0; transform: scale(1.05); }
+#photo-img.loaded  { opacity: 1; transform: scale(1); }
+
+#photo-placeholder {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 8px;
+  background: #0c1020;
+}
+.pp-num {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 56px;
+  color: rgba(245,197,24,0.1);
+  line-height: 1;
+}
+.pp-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(200,215,255,0.2);
+}
+
+/* Photo gradient overlay */
+#photo-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 70px;
+  background: linear-gradient(transparent, #07090f);
+  pointer-events: none;
+}
+#photo-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40px;
+  background: linear-gradient(rgba(7,9,15,0.5), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Step badge over photo */
+#step-badge {
+  position: absolute;
+  top: 12px; left: 12px;
+  z-index: 3;
+  background: rgba(7,9,15,0.85);
+  border: 2px solid #f5c518;
+  border-radius: 4px;
+  padding: 4px 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sb-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: rgba(245,197,24,0.6);
+}
+.sb-num {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 14px;
+  color: #f5c518;
+  text-shadow: 0 0 10px rgba(245,197,24,0.5);
+  line-height: 1;
+}
+.sb-total {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: rgba(200,215,255,0.3);
+}
+
+/* ── PANEL BODY (scrollable) ── */
+#panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+#panel-body::-webkit-scrollbar { width: 3px; }
+#panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+/* ── CONTENT AREA ── */
+#content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Progress dots */
+#progress-dots {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.pdot {
+  width: 22px; height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.07);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+.pdot.done   { background: rgba(245,197,24,0.4); }
+.pdot.active { background: #f5c518; box-shadow: 0 0 8px rgba(245,197,24,0.5); }
+.pdot.locked { background: rgba(255,255,255,0.04); cursor: default; }
+
+/* Distance info */
+#leg-info {
+  display: flex;
+  gap: 8px;
+}
+.li-card {
+  flex: 1;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+.li-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: rgba(200,215,255,0.3);
+  margin-bottom: 3px;
+}
+.li-val {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #f5c518;
+  text-shadow: 0 0 8px rgba(245,197,24,0.3);
+}
+
+/* Route preview: from → to */
+#route-preview {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-left: 3px solid rgba(245,197,24,0.3);
+  border-radius: 2px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9.5px;
+  color: rgba(200,215,255,0.5);
+  letter-spacing: 0.5px;
+}
+.rp-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rp-dot.current { background: #f5c518; box-shadow: 0 0 6px rgba(245,197,24,0.6); }
+.rp-dot.next    { background: rgba(245,197,24,0.3); border: 1px solid rgba(245,197,24,0.4); }
+.rp-arrow {
+  font-size: 10px;
+  color: rgba(245,197,24,0.25);
+  padding-left: 8px;
+}
+
+/* Nav buttons */
+#nav {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: #07090f;
+}
+.nav-btn {
+  flex: 1;
+  height: 42px;
+  border: none;
+  border-radius: 3px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+#prev-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(200,215,255,0.5);
+  flex: 0 0 52px;
+}
+#prev-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+#prev-btn:disabled { opacity: 0.2; cursor: default; }
+#next-btn {
+  background: rgba(245,197,24,0.12);
+  border: 1.5px solid rgba(245,197,24,0.4);
+  color: #f5c518;
+  text-shadow: 0 0 10px rgba(245,197,24,0.4);
+  box-shadow: 0 0 20px rgba(245,197,24,0.06);
+}
+#next-btn:hover { background: rgba(245,197,24,0.2); box-shadow: 0 0 24px rgba(245,197,24,0.15); }
+#next-btn.final-btn {
+  background: rgba(255,215,0,0.12);
+  border-color: rgba(255,215,0,0.5);
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255,215,0,0.5);
+}
+
+/* ── LEAFLET overrides ── */
+.leaflet-control-zoom a {
+  background: rgba(7,9,15,0.9) !important;
+  color: #f5c518 !important;
+  border: 1px solid rgba(245,197,24,0.25) !important;
+}
+.leaflet-control-zoom a:hover { background: rgba(245,197,24,0.08) !important; }
+.leaflet-control-attribution {
+  background: rgba(7,9,15,0.7) !important;
+  color: rgba(150,165,200,0.4) !important;
+  font-size: 8px !important;
+}
+
+/* ── MARKERS ── */
+.mpin { display: flex; flex-direction: column; align-items: center; }
+.mcircle {
+  border-radius: 50%;
+  background: #07090f;
+  border: 2.5px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+}
+.mcircle.active {
+  border-color: #f5c518;
+  color: #f5c518;
+  width: 36px; height: 36px; font-size: 15px;
+  box-shadow: 0 0 0 5px rgba(245,197,24,0.15), 0 0 20px rgba(245,197,24,0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.mcircle.visited {
+  border-color: rgba(245,197,24,0.5);
+  color: rgba(245,197,24,0.5);
+  width: 28px; height: 28px; font-size: 12px;
+}
+.mcircle.future {
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.2);
+  width: 26px; height: 26px; font-size: 11px;
+}
+.mcircle.final-active {
+  border-color: #fff; color: #fff;
+  font-size: 16px; width: 38px; height: 38px;
+  box-shadow: 0 0 0 5px rgba(255,255,255,0.12), 0 0 24px rgba(255,255,255,0.4);
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 5px rgba(245,197,24,0.15), 0 0 20px rgba(245,197,24,0.5); }
+  50%      { box-shadow: 0 0 0 10px rgba(245,197,24,0.05), 0 0 30px rgba(245,197,24,0.7); }
+}
+.mstem { width: 2px; height: 7px; }
+.mdot  { width: 4px; height: 4px; border-radius: 50%; }
+
+/* ── LOADING ── */
+#loading {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #07090f;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  transition: opacity 0.5s;
+}
+.ld-logo {
+  font-family: 'Orbitron', sans-serif; font-weight: 900;
+  font-size: 24px; letter-spacing: 6px; color: #f5c518;
+  text-shadow: 0 0 30px rgba(245,197,24,0.5);
+  padding-left: 6px; text-align: center;
+}
+.ld-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 3px; color: rgba(200,215,255,0.4);
+  padding-left: 3px; text-align: center;
+}
+.ld-bar { width: 240px; height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; }
+.ld-fill { height: 100%; background: #f5c518; border-radius: 2px; transition: width 0.3s ease; }
+.ld-msg {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; letter-spacing: 2px; color: rgba(200,215,255,0.3);
+}
+
+/* ── STEP CONTENT BLOCKS ── */
+#step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cb {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 3px;
+  padding: 9px 11px;
+}
+.cb-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 3px;
+  color: rgba(200,215,255,0.3);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+.cb-text {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(200,215,255,0.8);
+  line-height: 1.5;
+}
+.cb.enigma  { border-left: 3px solid rgba(245,197,24,0.3); }
+.cb.mission { border-left: 3px solid rgba(255,160,0,0.45); background: rgba(255,160,0,0.03); }
+.cb.mission .cb-label { color: rgba(255,190,70,0.6); }
+.cb.mission .cb-text  { color: rgba(255,225,160,0.85); }
+.cb.gage    { border-left: 3px solid rgba(0,210,100,0.4); background: rgba(0,210,100,0.03); }
+.cb.gage .cb-label { color: rgba(0,210,100,0.5); }
+.cb.gage .cb-text  { color: rgba(160,255,200,0.8); }
+.cb.clues   { border-left: 3px solid rgba(120,160,255,0.3); }
+.clue-row {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; color: rgba(160,190,255,0.65);
+  letter-spacing: 0.4px; line-height: 1.45;
+  margin-bottom: 4px;
+}
+.clue-row:last-child { margin-bottom: 0; }
+.clue-n {
+  background: rgba(120,160,255,0.12);
+  border: 1px solid rgba(120,160,255,0.22);
+  color: rgba(160,200,255,0.8);
+  min-width: 16px; height: 16px;
+  border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; flex-shrink: 0;
+}
+.bonus-line {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.5px;
+  color: rgba(245,197,24,0.65);
+  margin-top: 6px; letter-spacing: 0.5px;
+}
+.bonus-line::before { content: '★ '; }
+.cb.validation {
+  background: rgba(255,34,51,0.05);
+  border: 1px solid rgba(255,34,51,0.2);
+  border-left: 3px solid rgba(255,34,51,0.55);
+  display: flex; align-items: center; gap: 8px;
+}
+.val-icon { font-size: 15px; flex-shrink: 0; }
+.val-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.5px; letter-spacing: 0.8px;
+  color: rgba(255,110,110,0.85); line-height: 1.4;
+}
+.cb.direction { border-left: 3px solid rgba(245,197,24,0.18); }
+.dir-row {
+  display: flex; align-items: center; gap: 7px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; color: rgba(200,215,255,0.45);
+  letter-spacing: 0.5px;
+}
+.dir-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.dir-dot.cur { background: #f5c518; box-shadow: 0 0 5px rgba(245,197,24,0.6); }
+.dir-dot.nxt { background: rgba(245,197,24,0.25); border: 1px solid rgba(245,197,24,0.4); }
+.dir-arrow { font-size: 9px; color: rgba(245,197,24,0.22); padding-left: 7px; }
+
+/* ── Rules footer ── */
+#rules-footer {
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: rgba(8,11,20,0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rf-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: rgba(200,215,255,0.28);
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+.rf-icon { font-size: 10px; flex-shrink: 0; }
+#rules-footer strong { color: rgba(245,197,24,0.65); font-weight: 700; }
+
+/* ── CODE INPUT ── */
+#code-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+#code-input-row {
+  display: flex;
+  gap: 6px;
+}
+#code-input {
+  flex: 1;
+  height: 42px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(245,197,24,0.35);
+  border-radius: 3px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 5px;
+  color: #f5c518;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  text-transform: uppercase;
+  padding-left: 5px;
+  caret-color: #f5c518;
+}
+#code-input:focus {
+  border-color: rgba(245,197,24,0.7);
+  box-shadow: 0 0 0 3px rgba(245,197,24,0.08);
+}
+#code-input.shake { animation: cshake 0.35s ease; border-color: rgba(245,197,24,0.9); }
+#code-btn {
+  flex: 0 0 42px;
+  background: rgba(245,197,24,0.12);
+  border: 1.5px solid rgba(245,197,24,0.4);
+  color: #f5c518;
+  font-size: 14px;
+}
+#code-btn:hover { background: rgba(245,197,24,0.22); }
+#code-error {
+  display: none;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: 2px;
+  color: rgba(245,197,24,0.75);
+  text-align: center;
+}
+#final-btn { display: none; }
+@keyframes cshake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-5px); }
+  40%     { transform: translateX(5px); }
+  60%     { transform: translateX(-3px); }
+  80%     { transform: translateX(3px); }
+}
+
+/* ── MARKER POPUP MODAL ── */
+#marker-modal {
+  display: none;
+  position: fixed; inset: 0; z-index: 2000;
+}
+#marker-modal.visible { display: block; }
+#mm-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.5);
+}
+#mm-sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: #0d1120;
+  border-top: 1px solid rgba(245,197,24,0.2);
+  border-radius: 10px 10px 0 0;
+  padding: 18px 18px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+#mm-handle {
+  width: 36px; height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  margin: 0 auto -6px;
+}
+#mm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#mm-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #f5c518;
+  text-shadow: 0 0 12px rgba(245,197,24,0.4);
+}
+#mm-close {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(200,215,255,0.5);
+  border-radius: 3px;
+  width: 26px; height: 26px;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+#mm-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: rgba(200,215,255,0.3);
+  margin-top: -8px;
+}
+#mm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mm-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.mm-btn:hover { background: rgba(255,255,255,0.07); }
+.mm-btn-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.mm-btn-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: rgba(200,215,255,0.85);
+}
+.mm-btn-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7.5px;
+  color: rgba(200,215,255,0.3);
+  letter-spacing: 1px;
+  margin-top: 1px;
+}
+
+/* Scanlines */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px);
+  pointer-events: none; z-index: 800;
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo">🟡 MISSION MANCHESTER</div>
+  <div class="ld-sub">ÉQUIPE 01 · YELLOW UNIT · INITIALISATION</div>
+  <div class="ld-bar"><div class="ld-fill" id="ldfill" style="width:0%"></div></div>
+  <div class="ld-msg" id="ldmsg">CHARGEMENT DE LA CARTE…</div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+<button id="expand-btn" title="Ouvrir le panneau">▶</button>
+
+<!-- SIDE PANEL -->
+<div id="panel">
+  <div id="panel-header">
+    <div id="panel-header-inner">
+      <div>
+        <div class="ph-eyebrow">OP-MCR-2026 · CLASSIFIÉ</div>
+        <div class="ph-title">MISSION MANCHESTER</div>
+        <div class="ph-sub">ÉQUIPE 01 · YELLOW UNIT · ROUTE ALPHA</div>
+      </div>
+      <div id="panel-controls">
+        <button class="pc-btn accent" id="mode-btn" title="Changer de vue">⊟</button>
+        <button class="pc-btn" id="collapse-btn" title="Réduire le panneau">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-body">
+
+    <div id="photo-wrap">
+      <img id="photo-img" src="" alt="" class="loading">
+      <div id="photo-placeholder">
+        <div class="pp-num" id="pp-num">01</div>
+        <div class="pp-label">CHARGEMENT…</div>
+      </div>
+      <div id="step-badge">
+        <div class="sb-label">ÉTAPE</div>
+        <div class="sb-num" id="sb-num">01</div>
+        <div class="sb-total" id="sb-total">/ 9</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div id="progress-dots"></div>
+
+      <div id="leg-info">
+        <div class="li-card">
+          <div class="li-label">DISTANCE</div>
+          <div class="li-val" id="li-dist">—</div>
+        </div>
+        <div class="li-card">
+          <div class="li-label">À PIED</div>
+          <div class="li-val" id="li-time">—</div>
+        </div>
+        <div class="li-card">
+          <div class="li-label">ÉTAPES REST.</div>
+          <div class="li-val" id="li-remain">9</div>
+        </div>
+      </div>
+
+      <div id="step-content"></div>
+    </div>
+
+    <div id="rules-footer">
+      <div class="rf-row"><span class="rf-icon">🔥</span><span>Soyez les premiers à arriver ou gagnez du temps en remportant les défis !</span></div>
+      <div class="rf-row"><span class="rf-icon">⏱️</span><span>Indices : À demander à l'organisatrice → <strong>+2 min de malus</strong> par indice</span></div>
+      <div class="rf-row"><span class="rf-icon">📸</span><span>Preuves : Photo ou vidéo obligatoire — sans ça l'étape n'est pas validée → <strong>+10 min de malus</strong></span></div>
+      <div class="rf-row"><span class="rf-icon">😈</span><span>Bonus : À tout moment, lancez un gage mystère à l'équipe adverse !</span></div>
+    </div>
+
+  </div><!-- /#panel-body -->
+
+  <div id="nav">
+    <button class="nav-btn" id="prev-btn" disabled>◀</button>
+    <div id="code-wrap">
+      <div id="code-input-row">
+        <input id="code-input" type="text" maxlength="4" placeholder="CODE"
+          autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+        <button class="nav-btn" id="code-btn">▶</button>
+      </div>
+      <div id="code-error">⚠ CODE INCORRECT</div>
+    </div>
+    <button class="nav-btn final-btn" id="final-btn">🍺 TOURNÉE GÉNÉRALE !</button>
+  </div>
+
+</div>
+
+<!-- MARKER NAVIGATION MODAL -->
+<div id="marker-modal">
+  <div id="mm-backdrop"></div>
+  <div id="mm-sheet">
+    <div id="mm-handle"></div>
+    <div id="mm-header">
+      <div id="mm-title"></div>
+      <button id="mm-close">✕</button>
+    </div>
+    <div id="mm-sub"></div>
+    <div id="mm-actions">
+      <a id="mm-gmaps" class="mm-btn" target="_blank" rel="noopener">
+        <div class="mm-btn-icon">🗺️</div>
+        <div><div class="mm-btn-label">Google Maps</div><div class="mm-btn-sub">OUVRIR DANS GOOGLE MAPS</div></div>
+      </a>
+      <a id="mm-apple" class="mm-btn" target="_blank" rel="noopener">
+        <div class="mm-btn-icon">🍎</div>
+        <div><div class="mm-btn-label">Apple Maps</div><div class="mm-btn-sub">OUVRIR DANS PLANS (IPHONE)</div></div>
+      </a>
+      <a id="mm-waze" class="mm-btn" target="_blank" rel="noopener">
+        <div class="mm-btn-icon">🚗</div>
+        <div><div class="mm-btn-label">Waze</div><div class="mm-btn-sub">OUVRIR DANS WAZE</div></div>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── STOP DATA ────────────────────────────────────────────
+const STOPS = [
+  {
+    n:1, lat:53.48396, lng:-2.23333, code:'RX4K',
+    name:'Stevenson Square', showName:true,
+    wiki:'Northern_Quarter,_Manchester',
+    enigma:'Rendez-vous à <strong>Stevenson Square</strong> dans le Northern Quarter. Partez à la découverte du street art qui orne ces murs !',
+    gage:'Choisissez une fresque ou un graffiti · Recréez la posture, l\'expression et l\'ambiance · Toute l\'équipe doit participer',
+    needsValidation:true,
+  },
+  {
+    n:2, lat:53.48396, lng:-2.23753, code:'ZW7M',
+    name:'???', showName:false,
+    wiki:'Afflecks',
+    enigma:'Dans le Northern Quarter, un palace de l\'alternatif vous attend sur plusieurs étages. Friperies, tatoueurs, vinyles et bizarreries se disputent chaque recoin depuis les années 80.',
+    clues:['Cherchez une grande façade colorée dans le Northern Quarter','Plus de 4 étages de boutiques indépendantes','L\'enseigne existe depuis 1982 · vous pouvez demander votre chemin aux passants'],
+    gage:'Un joueur doit essayer la tenue la plus folklorique trouvée en boutique',
+    bonus:'Meilleur look = -5 minutes',
+  },
+  {
+    n:3, lat:53.48086, lng:-2.23659, code:'QB9T',
+    name:'???', showName:false,
+    wiki:'Piccadilly_Gardens',
+    enigma:'Je suis le poumon vert du centre-ville. Les tramways m\'entourent de toutes parts. Une fontaine circulaire trône en mon cœur. Pigeons et passants m\'envahissent toute la journée.',
+    clues:['Regardez les lignes de tramway autour de vous','Grand espace ouvert avec des bancs et une fontaine centrale','C\'est un lieu de passage incontournable'],
+    gage:'Mimez une scène de couple romantique · main dans la main · love story assumée · photo ou vidéo obligatoire',
+  },
+  {
+    n:4, lat:53.47680, lng:-2.23590, code:'NF2V',
+    name:'???', showName:false,
+    wiki:'Canal_Street,_Manchester',
+    enigma:'Je longe un canal, mes bars ne ferment jamais. Arc-en-ciel et musique sont mes couleurs. Je suis la rue la plus festive et colorée de Manchester.',
+    clues:['Suivez le son de la musique','Cherchez les drapeaux multicolores dans la rue','De l\'eau coule juste à côté'],
+    gage:'Prenez un shooter ensemble dans un bar',
+    bonus:'Photo obligatoire',
+  },
+  {
+    n:5, lat:53.48537, lng:-2.24498, code:'YG6P',
+    name:'???', showName:false,
+    wiki:'Manchester_Cathedral',
+    enigma:'Je suis le gardien millénaire de cette ville. Mes pierres gothiques s\'élèvent depuis le XVe siècle. On vient me voir pour l\'histoire… ou pour un selfie.',
+    clues:['Je suis dans le nord du centre-ville','Mes tours sont en pierre gothique','Des vieilles maisons à colombages penchées sont juste à côté'],
+    gage:'Faites une photo avec un maximum de personnes',
+    bonus:'Équipe avec le plus de monde = -5 minutes',
+  },
+  {
+    n:6, lat:53.48278, lng:-2.23974, code:'DH3W',
+    name:'Arndale Market', showName:true,
+    wiki:'Manchester_Arndale',
+    description:'Bienvenue à l\'<strong>Arndale Market</strong>. Mission spéciale : vous faites les courses.',
+    mission:'Vous avez <strong>25€</strong> pour organiser un repas pour 7 personnes',
+    constraints:['Repas typique obligatoire','Ce sera votre repas du jeudi soir','Preuve : photo + ticket de caisse'],
+    bonus:'Meilleur repas = -5 minutes',
+  },
+  {
+    n:7, lat:53.48362, lng:-2.23527, code:'MC8R',
+    name:'Tib Street', showName:true,
+    wiki:'Northern_Quarter,_Manchester',
+    enigma:'Rendez-vous sur <strong>Tib Street</strong>, la rue des tatoueurs et des boutiques insolites du Northern Quarter.',
+    gage:'Prenez une photo de groupe devant le panneau "Tib Street"',
+  },
+  {
+    n:8, lat:53.47776, lng:-2.23375, code:'KT5X',
+    name:'???', showName:false,
+    wiki:'Manchester_Chinatown',
+    gage:'Micro-trottoir : demandez à 2 inconnus "C\'est quoi le meilleur plat asiatique ?"',
+    bonus:'-5 minutes si la personne interviewée est asiatique',
+  },
+  {
+    n:9, lat:53.48453, lng:-2.24385,
+    name:'???', showName:false,
+    wiki:'Shambles,_Manchester', final:true,
+    enigma:'« Je suis un lieu où le passé tient encore debout,<br>Entouré de pubs et d\'histoires à boire debout.<br>Tout près d\'un lieu sacré, mais ici on trinque,<br>Et c\'est souvent ici que la soirée commence… ou déraille. »',
+  },
+];
+
+// ── STATE ────────────────────────────────────────────────
+let currentStep = 0;
+const legRoutes  = [];     // pre-fetched OSRM coords
+const images     = [];     // pre-fetched photo URLs
+const legDistances = [];   // metres per leg
+const legDurations = [];   // seconds per leg
+const leafletLayers = [];  // polyline layers on map
+const markerRefs = [];     // Leaflet marker references
+
+// ── MAP INIT ─────────────────────────────────────────────
+const map = L.map('map', {
+  center: [53.4820, -2.2400],
+  zoom: 15,
+  zoomControl: false,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap contributors © CARTO',
+  subdomains: 'abcd',
+  maxZoom: 20,
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// ── MARKER FACTORY ───────────────────────────────────────
+function makeIcon(stop, state /* 'active'|'visited'|'future' */) {
+  const isFinal = stop.final;
+  const cls = isFinal && state === 'active' ? 'final-active' : state;
+  const lbl = isFinal ? '🏁' : stop.n;
+  const stemCol = state === 'future' ? 'rgba(255,255,255,0.12)' : (isFinal && state === 'active' ? '#fff' : '#f5c518');
+  const vis = state === 'future' ? ' style="display:none"' : '';
+  return L.divIcon({
+    html: `<div class="mpin"${vis}>
+      <div class="mcircle ${cls}">${lbl}</div>
+      <div class="mstem" style="background:${stemCol}"></div>
+      <div class="mdot"  style="background:${stemCol}"></div>
+    </div>`,
+    className: '',
+    iconAnchor: [14, 46],
+  });
+}
+
+// ── FETCH WIKIPEDIA IMAGE ─────────────────────────────────
+async function fetchWikiImg(title) {
+  try {
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const d   = await res.json();
+    return d.thumbnail?.source || d.originalimage?.source || null;
+  } catch { return null; }
+}
+
+// ── FETCH OSRM LEG ────────────────────────────────────────
+async function fetchLeg(from, to) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?geometries=geojson&overview=full`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(7000) });
+    const d   = await res.json();
+    if (d.code === 'Ok') {
+      return {
+        coords:   d.routes[0].geometry.coordinates.map(c => [c[1], c[0]]),
+        distance: Math.round(d.routes[0].distance),
+        duration: Math.round(d.routes[0].duration),
+      };
+    }
+  } catch {}
+  const dx = (to.lat - from.lat) * 111000;
+  const dy = (to.lng - from.lng) * 111000 * Math.cos(from.lat * Math.PI / 180);
+  const dist = Math.round(Math.sqrt(dx*dx + dy*dy));
+  return { coords: [[from.lat, from.lng], [to.lat, to.lng]], distance: dist, duration: Math.round(dist / 1.2) };
+}
+
+// ── FORMAT HELPERS ────────────────────────────────────────
+const fmtDist = m => m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
+const fmtTime = s => { const m = Math.round(s/60); return m < 60 ? `${m} min` : `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; };
+
+// ── BUILD PROGRESS DOTS ───────────────────────────────────
+const dotsEl = document.getElementById('progress-dots');
+STOPS.forEach((s, i) => {
+  const d = document.createElement('div');
+  d.className = 'pdot';
+  d.id = `pdot-${i}`;
+  d.title = s.showName ? s.name : `Étape ${s.n}`;
+  d.addEventListener('click', () => goTo(i));
+  dotsEl.appendChild(d);
+});
+
+// ── RENDER STEP ───────────────────────────────────────────
+function renderStep(idx) {
+  const stop    = STOPS[idx];
+  const prevStop = idx > 0 ? STOPS[idx-1] : null;
+  const nextStop = idx < STOPS.length-1 ? STOPS[idx+1] : null;
+
+  // ── Photo ──
+  const img = document.getElementById('photo-img');
+  const placeholder = document.getElementById('photo-placeholder');
+  img.className = 'loading';
+
+  if (images[idx]) {
+    placeholder.style.display = 'none';
+    img.onload = () => img.className = 'loaded';
+    img.onerror = () => {
+      img.style.display = 'none';
+      placeholder.style.display = 'flex';
+      document.getElementById('pp-num').textContent = String(stop.n).padStart(2,'0');
+    };
+    img.src = images[idx];
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+    placeholder.style.display = 'flex';
+    document.getElementById('pp-num').textContent = stop.final ? '🏁' : String(stop.n).padStart(2,'0');
+  }
+
+  // ── Badge ──
+  document.getElementById('sb-num').textContent = String(stop.n).padStart(2,'0');
+
+  // ── Progress dots ──
+  STOPS.forEach((_, i) => {
+    const d = document.getElementById(`pdot-${i}`);
+    const state = i < idx ? ' done' : i === idx ? ' active' : ' locked';
+    d.className = 'pdot' + state;
+    d.style.pointerEvents = i <= idx ? 'auto' : 'none';
+  });
+
+  // ── Leg info ──
+  if (idx < STOPS.length-1 && legDistances[idx]) {
+    document.getElementById('li-dist').textContent = fmtDist(legDistances[idx]);
+    document.getElementById('li-time').textContent = fmtTime(legDurations[idx]);
+  } else {
+    document.getElementById('li-dist').textContent = idx === STOPS.length-1 ? '—' : '…';
+    document.getElementById('li-time').textContent = idx === STOPS.length-1 ? 'Arrivée' : '…';
+  }
+  document.getElementById('li-remain').textContent = STOPS.length - 1 - idx;
+
+  // ── Step content ──
+  const sc = document.getElementById('step-content');
+  sc.innerHTML = '';
+
+  const mkBlock = (cls, label, html) =>
+    `<div class="cb ${cls}"><div class="cb-label">${label}</div><div class="cb-text">${html}</div></div>`;
+
+  // Enigma / description
+  if (stop.description) sc.innerHTML += mkBlock('enigma', '📍 OBJECTIF', stop.description);
+  if (stop.enigma)      sc.innerHTML += mkBlock('enigma', stop.final ? '🔍 ÉNIGME FINALE' : '🔍 ÉNIGME', stop.enigma);
+
+  // Mission (Arndale)
+  if (stop.mission) {
+    let body = stop.mission;
+    if (stop.constraints) body += '<br><br>' + stop.constraints.map(c=>`• ${c}`).join('<br>');
+    if (stop.bonus) body += `<div class="bonus-line">${stop.bonus}</div>`;
+    sc.innerHTML += mkBlock('mission', '🎯 MISSION', body);
+  }
+
+  // Gage
+  if (stop.gage) {
+    let body = stop.gage;
+    if (stop.bonus && !stop.mission) body += `<div class="bonus-line">${stop.bonus}</div>`;
+    sc.innerHTML += mkBlock('gage', '🎭 GAGE', body);
+  }
+
+  // Validation notice
+  if (stop.needsValidation) {
+    sc.innerHTML += `<div class="cb validation">
+      <div class="val-icon">⚠️</div>
+      <div class="val-text">VALIDATION OBLIGATOIRE avant de passer à l'étape suivante</div>
+    </div>`;
+  }
+
+  // Direction
+  const fromLabel = stop.showName   ? stop.name.toUpperCase()     : `ÉTAPE ${stop.n} · LIEU MYSTÈRE`;
+  const toLabel   = !nextStop       ? '🏁 ARRIVÉE'
+                  : nextStop.showName ? nextStop.name.toUpperCase() : `ÉTAPE ${nextStop.n} · LIEU MYSTÈRE`;
+  sc.innerHTML += `<div class="cb direction">
+    <div class="cb-label">📍 DIRECTION</div>
+    <div class="dir-row"><div class="dir-dot cur"></div><span>${fromLabel}</span></div>
+    <div class="dir-arrow">↓</div>
+    <div class="dir-row"><div class="dir-dot nxt"></div><span>${toLabel}</span></div>
+  </div>`;
+
+  // ── Buttons ──
+  document.getElementById('prev-btn').disabled = idx === 0;
+  const isFinalStep = idx === STOPS.length - 1;
+  document.getElementById('code-wrap').style.display  = isFinalStep ? 'none' : 'flex';
+  document.getElementById('final-btn').style.display  = isFinalStep ? 'flex' : 'none';
+  if (!isFinalStep) {
+    document.getElementById('code-input').value = '';
+    document.getElementById('code-error').style.display = 'none';
+  }
+
+  // ── Markers ──
+  markerRefs.forEach((m, i) => {
+    const s = i < idx ? 'visited' : i === idx ? 'active' : 'future';
+    m.setIcon(makeIcon(STOPS[i], s));
+    m.setZIndexOffset(i === idx ? 1000 : 0);
+  });
+
+  // ── Route layers ──
+  leafletLayers.forEach((layer, i) => {
+    if (layer) map.removeLayer(layer);
+  });
+
+  // Redraw all revealed routes
+  for (let i = 0; i < idx; i++) {
+    if (legRoutes[i]) {
+      // Glow
+      L.polyline(legRoutes[i], {
+        color: 'rgba(245,197,24,0.18)',
+        weight: 12, lineCap: 'round', lineJoin: 'round', interactive: false,
+      }).addTo(map);
+      // Line
+      L.polyline(legRoutes[i], {
+        color: 'rgba(245,197,24,0.5)',
+        weight: 3.5, lineCap: 'round', lineJoin: 'round', interactive: false,
+      }).addTo(map);
+    }
+  }
+
+  // ── Map pan ──
+  map.flyTo([stop.lat, stop.lng], 16, { duration: 1.2, easeLinearity: 0.5 });
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+function goTo(idx) {
+  if (idx < 0 || idx >= STOPS.length) return;
+  currentStep = idx;
+  renderStep(currentStep);
+}
+
+document.getElementById('prev-btn').addEventListener('click', () => goTo(currentStep - 1));
+
+// ── VALIDATION CODE ───────────────────────────────────────
+function validateCode() {
+  const ci = document.getElementById('code-input');
+  const input = ci.value.trim().toUpperCase();
+  if (!input) return;
+  if (input === STOPS[currentStep].code) {
+    document.getElementById('code-error').style.display = 'none';
+    goTo(currentStep + 1);
+  } else {
+    ci.value = '';
+    document.getElementById('code-error').style.display = 'block';
+    ci.classList.remove('shake');
+    void ci.offsetWidth;
+    ci.classList.add('shake');
+    setTimeout(() => ci.classList.remove('shake'), 400);
+  }
+}
+document.getElementById('code-btn').addEventListener('click', validateCode);
+document.getElementById('code-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') validateCode();
+  else document.getElementById('code-error').style.display = 'none';
+});
+
+// ── KEYBOARD ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') goTo(currentStep - 1);
+});
+
+// ── INIT: preload everything ──────────────────────────────
+async function init() {
+  const fill = document.getElementById('ldfill');
+  const msg  = document.getElementById('ldmsg');
+  const total = STOPS.length + (STOPS.length - 1);
+  let done = 0;
+
+  const tick = () => { fill.style.width = `${Math.round((++done / total) * 100)}%`; };
+
+  // 1. Place all markers (future state)
+  STOPS.forEach((s, i) => {
+    const m = L.marker([s.lat, s.lng], { icon: makeIcon(s, 'future') }).addTo(map);
+    m.on('click', () => { if (i <= currentStep) showMarkerModal(s); });
+    markerRefs.push(m);
+  });
+
+  // 2. Fetch images in parallel
+  msg.textContent = 'CHARGEMENT DES IMAGES…';
+  await Promise.all(STOPS.map(async (s, i) => {
+    images[i] = await fetchWikiImg(s.wiki);
+    tick();
+  }));
+
+  // 3. Fetch routes sequentially (respect API)
+  for (let i = 0; i < STOPS.length - 1; i++) {
+    msg.textContent = `CALCUL ITINÉRAIRE ${i+1} → ${i+2}…`;
+    const leg = await fetchLeg(STOPS[i], STOPS[i+1]);
+    legRoutes[i]    = leg.coords;
+    legDistances[i] = leg.distance;
+    legDurations[i] = leg.duration;
+    tick();
+    await new Promise(r => setTimeout(r, 60));
+  }
+
+  // 4. Fit map then show step 1
+  const bounds = L.latLngBounds(STOPS.map(s => [s.lat, s.lng]));
+  map.fitBounds(bounds, { paddingTopLeft:[20,20], paddingBottomRight:[20,20] });
+
+  // 5. Hide loader & go to step 1
+  const ld = document.getElementById('loading');
+  ld.style.opacity = '0';
+  setTimeout(() => {
+    ld.style.display = 'none';
+    map.invalidateSize();
+    renderStep(0);
+  }, 500);
+}
+
+// ── MARKER MODAL ─────────────────────────────────────────
+function showMarkerModal(stop) {
+  const name = stop.showName ? stop.name : `ÉTAPE ${stop.n}`;
+  document.getElementById('mm-title').textContent = name;
+  document.getElementById('mm-sub').textContent   = `${stop.lat.toFixed(5)}, ${stop.lng.toFixed(5)}`;
+  document.getElementById('mm-gmaps').href = `https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`;
+  document.getElementById('mm-apple').href = `maps://maps.apple.com/?daddr=${stop.lat},${stop.lng}`;
+  document.getElementById('mm-waze').href  = `https://waze.com/ul?ll=${stop.lat},${stop.lng}&navigate=yes`;
+  document.getElementById('marker-modal').classList.add('visible');
+}
+function closeMarkerModal() {
+  document.getElementById('marker-modal').classList.remove('visible');
+}
+document.getElementById('mm-close').addEventListener('click', closeMarkerModal);
+document.getElementById('mm-backdrop').addEventListener('click', closeMarkerModal);
+
+init();
+
+// ── MODE / COLLAPSE ──────────────────────────────────────
+(function () {
+  const body = document.body;
+  const modeBtn     = document.getElementById('mode-btn');
+  const collapseBtn = document.getElementById('collapse-btn');
+  const expandBtn   = document.getElementById('expand-btn');
+
+  const ICONS_MODE = { side: '⊟', stack: '⊞' };
+
+  function setMode(mode) {
+    body.classList.remove('mode-side', 'mode-stack', 'collapsed');
+    body.classList.add('mode-' + mode);
+    modeBtn.textContent = ICONS_MODE[mode === 'side' ? 'stack' : 'side'];
+    modeBtn.title = mode === 'side' ? 'Vue carte + infos empilées' : 'Vue panneau latéral';
+    setTimeout(() => map.invalidateSize(), 360);
+  }
+
+  function toggleCollapse() {
+    body.classList.toggle('collapsed');
+    setTimeout(() => map.invalidateSize(), 360);
+  }
+
+  map.on('click', () => {
+    if (body.classList.contains('mode-side') && !body.classList.contains('collapsed')) {
+      body.classList.add('collapsed');
+      setTimeout(() => map.invalidateSize(), 360);
+    }
+  });
+
+  modeBtn.addEventListener('click', () => {
+    setMode(body.classList.contains('mode-side') ? 'stack' : 'side');
+  });
+  collapseBtn.addEventListener('click', toggleCollapse);
+  expandBtn.addEventListener('click', () => {
+    body.classList.remove('collapsed');
+    setTimeout(() => map.invalidateSize(), 360);
+  });
+
+  // Défaut : mode empilé sur mobile, latéral sur desktop
+  setMode(window.innerWidth <= 768 ? 'stack' : 'side');
+})();
+</script>
+</body>
+</html>
