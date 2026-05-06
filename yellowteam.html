@@ -1140,6 +1140,7 @@ function renderStep(idx) {
 function goTo(idx) {
   if (idx < 0 || idx >= STOPS.length) return;
   currentStep = idx;
+  localStorage.setItem('mcr_yellow_step', idx);
   renderStep(currentStep);
 }
 
@@ -1211,13 +1212,15 @@ async function init() {
   const bounds = L.latLngBounds(STOPS.map(s => [s.lat, s.lng]));
   map.fitBounds(bounds, { paddingTopLeft:[20,20], paddingBottomRight:[20,20] });
 
-  // 5. Hide loader & go to step 1
+  // 5. Hide loader & restore saved progress
   const ld = document.getElementById('loading');
   ld.style.opacity = '0';
   setTimeout(() => {
     ld.style.display = 'none';
     map.invalidateSize();
-    renderStep(0);
+    const saved = parseInt(localStorage.getItem('mcr_yellow_step') || '0', 10);
+    currentStep = (saved >= 0 && saved < STOPS.length) ? saved : 0;
+    renderStep(currentStep);
   }, 500);
 }
 
